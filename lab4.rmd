@@ -1,0 +1,125 @@
+---
+title: "Lab4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+defense <- read_excel('C:/Users/varun/Desktop/cyclonesFootball2019.xlsx', sheet='Defensive')
+offense <- read_excel('C:/Users/varun/Desktop/cyclonesFootball2019.xlsx', sheet='Offensive')
+biography <- read_excel('C:/Users/varun/Desktop/cyclonesFootball2019.xlsx', sheet='Biography')
+defClean <- defense
+offClean <- offense
+bioClean <- biography
+```
+```{r}
+library(magrittr)
+factorcols <- c("Name", "Opponent_Opponent")
+defClean %<>%  mutate_each_(funs(factor(.)),factorcols)
+defClean %<>%  mutate(across(where(is.character), as.numeric))
+offClean %<>%  mutate_each_(funs(factor(.)),factorcols)
+defClean %<>%  mutate(across(where(is.character), as.numeric))
+bioClean <- bioClean %>% separate(Height, c("feet", "inches"),"-")
+bioClean$Weight <- as.numeric(bioClean$Weight)
+bioClean$feet <- as.numeric(bioClean$feet)
+bioClean$inches <- as.numeric(bioClean$inches)
+bioClean$Height = bioClean$feet * 12 + bioClean$inches
+bioClean <- bioClean %>% select( -c(feet, inches))
+str(defClean)
+str(offClean)
+str(bioClean)
+```
+```{r}
+defClean <- defClean %>% 
+  pivot_longer(!(Name:Opponent_Opponent), names_to = "stat", values_to = "count")
+defCleanTotals <- defClean %>% group_by(stat) %>% mutate(statcount = sum(count)) %>% distinct(stat,statcount)
+ p <- ggplot(data = defCleanTotals, aes(x = as.factor(stat), y = statcount)) 
+  p <- p + xlab("Defense Statistics")  
+  p <- p + ylab("Count of Statistic")
+  p <- p + geom_bar(stat = "identity")
+  p <- p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  show(p) 
+  #The turnover defensive skills are very rare.
+```
+```{r}
+defCleanSoloTacklesIowa <- defClean %>% filter((Opponent_Opponent == 'Iowa'  | Opponent_Opponent == 'Notre Dame' ) & stat == 'Tackles_Solo') 
+defCleanSoloTacklesIowa <- defCleanSoloTacklesIowa %>% group_by(Opponent_Opponent) %>% mutate(defCounts=sum(count)) %>% distinct(Opponent_Opponent,defCounts)
+ggplot(data = defCleanSoloTacklesIowa, aes(x = Opponent_Opponent, y = defCounts)) + 
+  geom_bar(stat="Identity") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+# Looking at the figure below, Iowa's defense (Solo Tackles) is better with Notre Dame than with Iowa
+```
+```{r}
+bioClean <- bioClean %>% separate(Hometown, c("City", "State"),",")
+head(bioClean)
+```
+```{r}
+head(bioClean[5:6])
+```
+```{r}
+defenseStates <- defClean %>% inner_join(bioClean,by=(c("Name" = "Name")))  %>% mutate(type = 'Defense') %>% distinct(Name,State,type)
+offenseStates <- offClean %>% inner_join(bioClean,by=(c("Name" = "Name")))  %>% mutate(type = 'Offense') %>% distinct(Name,State,type)
+allStates <- rbind( defenseStates,  offenseStates) %>% select(State,type)
+allStatesCount <- allStates %>% group_by(State,type) %>% summarize(count=n())
+p <- ggplot(data = allStatesCount, aes(x = State, y = count,color=type)) 
+  p <- p + xlab("State")  
+  p <- p + ylab("Number of Playerss")
+  p <- p + geom_bar(stat = "identity")
+  show(p)
+#Iowa is the state from where most players join. Florida is the 2nd state to which more players belong. Florida and GA provide more offensive players than other states (including Iowa). 
+```
+```{r}
+#One measure of performance is the total number yards (Rushing, Received or Passed).
+offPerformance <- offClean
+offPerformance$Rushing_YDS = as.numeric(offPerformance$Rushing_YDS)
+offPerformance$Receiving_YDS = as.numeric(offPerformance$Receiving_YDS)
+offPerformance$Passing_YDS = as.numeric(offPerformance$Passing_YDS)
+offPerformance <- offPerformance %>% group_by(Name) %>% mutate(sumYDS = sum(ifelse(is.na(Rushing_YDS),0,Rushing_YDS) , ifelse(is.na(Receiving_YDS),0,Receiving_YDS) ,
+  ifelse(is.na(Passing_YDS),0,Passing_YDS)))
+offPerformance <- offPerformance %>% distinct(Name,sumYDS)
+ p <- ggplot(data = offPerformance, aes(x = Name, y = sumYDS)) 
+  p <- p + xlab("Name")  
+  p <- p + ylab("Number of Yards")
+  p <- p + geom_bar(stat = "identity")
+  p <- p +  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ show(p)
+#Looking at NFL 2020 records for other quarter backs' passing yards and teams' rushing yards, Purdy Brock's performance is good.
+```
+```{r}
+offense2018 <- read_excel('C:/Users/varun/Desktop/cyclonesFootball2018.xlsx', sheet='Offensive')
+offClean2018 <- offense2018
+offPerformance2018 <- offClean2018
+offPerformance2018$Rushing_YDS = as.numeric(offPerformance2018$Rushing_YDS)
+offPerformance2018$Receiving_YDS = as.numeric(offPerformance2018$Receiving_YDS)
+offPerformance2018$Passing_YDS = as.numeric(offPerformance2018$Passing_YDS)
+offPerformance2018 <- offPerformance2018 %>% group_by(Name) %>% mutate(sumYDS2018 = sum(ifelse(is.na(Rushing_YDS),0,Rushing_YDS) , ifelse(is.na(Receiving_YDS),0,Receiving_YDS) ,
+  ifelse(is.na(Passing_YDS),0,Passing_YDS)))
+offPerformance2018 <- offPerformance2018 %>% distinct(Name,sumYDS2018)
+CompPerformance <- offPerformance2018 %>% left_join(offPerformance,by=c("Name"= "Name")) %>% select(Name,sumYDS,sumYDS2018) %>% mutate(improveRatio = sumYDS/sumYDS2018)
+p <- ggplot(data = CompPerformance, aes(x = Name, y = improveRatio)) 
+  p <- p + xlab("Player Name")  
+  p <- p + ylab("Improvement Ratio")
+  p <- p + geom_point()
+  p <- p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  show(p) 
+  #According to the number of yards, Charlie Kolar is the most improved player.
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
